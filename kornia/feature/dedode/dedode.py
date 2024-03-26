@@ -1,4 +1,4 @@
-from typing import Dict, Literal, Optional, Tuple
+from typing import Dict, Literal, Optional, Tuple, TypeAlias
 
 import torch
 import torch.nn.functional as F
@@ -26,6 +26,33 @@ urls: Dict[str, Dict[str, str]] = {
         "G-C4": "https://github.com/georg-bn/rotation-steerers/releases/download/release-2/G_C4_Perm_descriptor_setting_C.pth",
     },
 }
+
+DetectorWeightName: TypeAlias = tuple[Literal["L"], str]
+DescriptorWeightName: TypeAlias = tuple[Literal["B", "G"], str]
+
+
+def parse_detector_weights(name: str) -> DetectorWeightName:
+    if name not in urls["detector"]:
+        raise AssertionError(f"Unknown detector: {name}")
+    components = name.split("-")
+    if len(components) != 2:
+        raise AssertionError("Only one hyphen expected in weight name")
+    prefix, suffix = components
+    if prefix == "L":
+        return prefix, suffix  # type: ignore
+    raise AssertionError(f"Unknown detector prefix: {prefix}")
+
+
+def parse_descriptor_weights(name: str) -> DescriptorWeightName:
+    if name not in urls["descriptor"]:
+        raise AssertionError(f"Unknown descriptor: {name}")
+    components = name.split("-")
+    if len(components) != 2:
+        raise AssertionError("Only one hyphen expected in weight name")
+    prefix, suffix = components
+    if prefix in ["B", "G"]:
+        return prefix, suffix  # type: ignore
+    raise AssertionError(f"Unknown descriptor prefix: {prefix}")
 
 
 class DeDoDe(Module):
@@ -190,9 +217,9 @@ class DeDoDe(Module):
         Returns:
             The pretrained model.
         """
-        model: DeDoDe = cls(
-            detector_model=detector_weights[0], descriptor_model=descriptor_weights[0], amp_dtype=amp_dtype
-        )
+        detector_model, _ = parse_detector_weights(detector_weights)
+        descriptor_model, _ = parse_descriptor_weights(descriptor_weights)
+        model: DeDoDe = cls(detector_model=detector_model, descriptor_model=descriptor_model, amp_dtype=amp_dtype)
         model.detector.load_state_dict(
             torch.hub.load_state_dict_from_url(urls["detector"][detector_weights], map_location=map_location_to_cpu)
         )
